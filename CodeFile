@@ -1,0 +1,71 @@
+import nltk
+import numpy as np
+import string
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from nltk.tokenize import sent_tokenize
+from transformers import pipeline
+
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')  # If you need stopwords
+nltk.download('wordnet')    # If you need WordNet for lemmatization
+nltk.download('punkt_tab')  # Missing resource for sentence tokenization
+
+# Function to clean text (remove punctuation)
+def clean_text(text):
+    return text.translate(str.maketrans('', '', string.punctuation))
+
+# Extractive Summarization
+def extractive_summary(text, n_sentences=3):
+    sentences = sent_tokenize(text)
+    sentences_cleaned = [clean_text(sentence) for sentence in sentences]
+    
+    # Vectorizing sentences using TF-IDF
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(sentences_cleaned)
+    
+    # Calculating cosine similarity matrix
+    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    
+    # Score each sentence by its similarity to the rest of the sentences
+    sentence_scores = np.sum(cosine_sim, axis=1)
+    
+    # Sort sentences by score
+    ranked_sentences = [sentences[i] for i in sentence_scores.argsort()[-n_sentences:]]
+    
+    return ' '.join(ranked_sentences)
+
+# Abstractive Summarization using Hugging Face
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
+def abstractive_summary(text, max_length=150, min_length=50):
+    summary = summarizer(text, max_length=max_length, min_length=min_length, do_sample=False)
+    return summary[0]['summary_text']
+
+# Summarization Function (either extractive or abstractive)
+def summarize(text, method="extractive", n_sentences=3):
+    if method == "extractive":
+        return extractive_summary(text, n_sentences)
+    elif method == "abstractive":
+        return abstractive_summary(text)
+    else:
+        raise ValueError("Method must be 'extractive' or 'abstractive'")
+
+# Sample text
+text = """
+Machine learning is a field of artificial intelligence that uses statistical techniques to give computer systems the ability to "learn" from data, without being explicitly programmed. 
+The field was founded on the idea that systems can learn from data, identify patterns and make decisions with minimal human intervention. 
+It has become an essential part of many industries, including finance, healthcare, and autonomous vehicles.
+Machine learning techniques are widely used for data analysis, and they help businesses and individuals make better decisions. 
+There are different types of machine learning, including supervised learning, unsupervised learning, and reinforcement learning.
+"""
+
+# Example usage
+summary = summarize(text, method="extractive", n_sentences=3)
+print("Extractive Summary:")
+print(summary)
+
+summary = summarize(text, method="abstractive")
+print("Abstractive Summary:")
+print(summary)
